@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">MasterSlave</string>
+    <string name="title_activity_discovery">DiscoveryActivity</string>
+    <string name="title_activity_master">MasterActivity</string>
+    <string name="title_activity_slave">SlaveActivity</string>
+    <string name="title_activity_pick">PickActivity</string>
+</resources>
