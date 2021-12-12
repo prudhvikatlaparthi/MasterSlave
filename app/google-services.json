@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "436171611021",
+    "project_id": "masterslave-7d616",
+    "storage_bucket": "masterslave-7d616.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:436171611021:android:6e2fb35594659d4a56bbc4",
+        "android_client_info": {
+          "package_name": "com.pru.slavedevice"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "436171611021-9emnshgo2vepl66olgb789lr6s11l09a.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCGx6qbOIlrFGASBGQYRkPizMw9egOmz-4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "436171611021-9emnshgo2vepl66olgb789lr6s11l09a.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

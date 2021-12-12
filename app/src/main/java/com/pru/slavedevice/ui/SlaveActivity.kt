@@ -1,10 +1,11 @@
-package com.pru.slavedevice
+package com.pru.slavedevice.ui
 
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
@@ -13,25 +14,60 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.lifecycleScope
+import androidx.compose.ui.unit.sp
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.*
-import com.pru.slavedevice.ui.theme.SlaveDeviceTheme
-import kotlinx.coroutines.delay
+import com.pru.slavedevice.theme.SlaveDeviceTheme
+import com.pru.slavedevice.nearby_api.SlaveAPI
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class SlaveActivity : ComponentActivity() {
     private val mRemoteHostEndpoint = mutableStateOf<String?>(null)
+
+    @Inject
+    lateinit var slaveAPI: SlaveAPI
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             SlaveDeviceTheme {
                 // A surface container using the 'background' color from the theme
-                val logState = rememberSaveable { mutableStateOf<String>("Loading") }
+                val logState = rememberSaveable { mutableStateOf("Loading") }
                 val focusManager = LocalFocusManager.current
-                startDiscovery(logState)
+                LaunchedEffect(true) {
+                    slaveAPI.startDiscovery(
+                        slaveName = "Slave 1",
+                        onSuccessListener = {
+                            logState.value = logState.value + "\nSuccess Listener"
+                        },
+                        onConnectionInitiated = { _: String, connectionInfo: ConnectionInfo ->
+                            logState.value =
+                                logState.value + "\nonConnectionInitiated endpointName ${connectionInfo.endpointName}"
+                        },
+                        onConnectionSuccess = { endPointId: String, _: ConnectionResolution ->
+                            mRemoteHostEndpoint.value = endPointId
+                        },
+                        onPayloadReceived = { _: String, payload: Payload ->
+                            logState.value = logState.value +
+                                    "\n"+String(payload.asBytes() ?: "Error ".toByteArray())
+                        },
+                        onEndpointLost = { endPointId ->
+                            logState.value =
+                                logState.value + "\nonDisconnected endPointId $endPointId"
+                        },
+                        onDisconnected = { endPointId ->
+                            logState.value =
+                                logState.value + "\nonDisconnected endPointId $endPointId"
+                        },
+                        onFailureListener = {
+                            logState.value = logState.value + "\nFailure $it"
+                        })
+                }
                 Surface(color = MaterialTheme.colors.background) {
                     Column(
                         modifier = Modifier
@@ -40,29 +76,13 @@ class SlaveActivity : ComponentActivity() {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        var numberstate by rememberSaveable {
-                            mutableStateOf<String>("")
+                        var numberState by rememberSaveable {
+                            mutableStateOf("")
                         }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(logState.value)
-                            Spacer(modifier = Modifier.width(10.dp))
-                            if (mRemoteHostEndpoint.value == null)
-                                CircularProgressIndicator(
-                                    strokeWidth = 2.dp,
-                                    modifier = Modifier
-                                        .height(30.dp)
-                                        .width(30.dp)
-                                )
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
                         OutlinedTextField(
-                            value = numberstate,
+                            value = numberState,
                             onValueChange = {
-                                numberstate = it
+                                numberState = it
                             },
                             label = { Text(text = "Enter Number") },
                             keyboardOptions = KeyboardOptions(
@@ -76,13 +96,29 @@ class SlaveActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.height(10.dp))
                         Button(onClick = {
                             mRemoteHostEndpoint.value?.let { endPointId ->
-                                Nearby.getConnectionsClient(this@SlaveActivity).sendPayload(
-                                    endPointId,
-                                    Payload.fromBytes(numberstate.toByteArray())
-                                )
+                                slaveAPI.sendRequest(endPointId, numberState)
                             }
                         }, enabled = mRemoteHostEndpoint.value != null) {
                             Text("Send")
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            LazyColumn(modifier = Modifier.weight(1f)) {
+                                item {
+                                    Text(logState.value, style = TextStyle(fontSize = 14.sp))
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            if (mRemoteHostEndpoint.value == null)
+                                CircularProgressIndicator(
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier
+                                        .height(30.dp)
+                                        .width(30.dp)
+                                )
                         }
                     }
                 }
@@ -92,13 +128,14 @@ class SlaveActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        Nearby.getConnectionsClient(this).stopDiscovery()
+        slaveAPI.stopServices(mRemoteHostEndpoint.value)
+        /*Nearby.getConnectionsClient(this).stopDiscovery()
         mRemoteHostEndpoint.value?.let {
             Nearby.getConnectionsClient(this).disconnectFromEndpoint(it)
-        }
+        }*/
     }
 
-    private fun startDiscovery(
+    /*private fun startDiscovery(
         logState: MutableState<String>
     ) {
         val options = DiscoveryOptions.Builder().setStrategy(Strategy.P2P_STAR).build()
@@ -109,8 +146,8 @@ class SlaveActivity : ComponentActivity() {
                     discoveredEndpointInfo: DiscoveredEndpointInfo
                 ) {
                     Log.i("Prudhvi Log", "onEndpointFound: ")
-                    /*logState.value =
-                        "onEndpointFound endPointId $endPointId discoveredEndpointInfo $discoveredEndpointInfo"*/
+                    logState.value =
+                        "onEndpointFound endPointId $endPointId discoveredEndpointInfo $discoveredEndpointInfo"
                     Nearby.getConnectionsClient(this@SlaveActivity)
                         .requestConnection(
                             "Slave Device 1",
@@ -120,16 +157,16 @@ class SlaveActivity : ComponentActivity() {
                                     endPointId: String,
                                     connectionInfo: ConnectionInfo
                                 ) {
-                                    /*logState.value =
-                                        "onConnectionInitiated endPointId $endPointId connectionInfo $connectionInfo"*/
+                                    logState.value =
+                                        "onConnectionInitiated endPointId $endPointId connectionInfo $connectionInfo"
                                     Nearby.getConnectionsClient(this@SlaveActivity)
                                         .acceptConnection(endPointId, object : PayloadCallback() {
                                             override fun onPayloadReceived(
                                                 endPointId: String,
                                                 payload: Payload
                                             ) {
-                                                /*logState.value =
-                                                    "onPayloadReceived endPointId $endPointId payload $payload"*/
+                                                logState.value =
+                                                    "onPayloadReceived endPointId $endPointId payload $payload"
                                                 if (payload.getType() == Payload.Type.BYTES) {
                                                     Log.i(
                                                         "Prudhvi Log",
@@ -144,8 +181,8 @@ class SlaveActivity : ComponentActivity() {
                                                 endPointId: String,
                                                 payloadTransferUpdate: PayloadTransferUpdate
                                             ) {
-                                                /*logState.value =
-                                                    "onPayloadTransferUpdate endPointId $endPointId payloadTransferUpdate $payloadTransferUpdate"*/
+                                                logState.value =
+                                                    "onPayloadTransferUpdate endPointId $endPointId payloadTransferUpdate $payloadTransferUpdate"
                                             }
                                         });
                                 }
@@ -154,8 +191,8 @@ class SlaveActivity : ComponentActivity() {
                                     endPoint: String,
                                     resolution: ConnectionResolution
                                 ) {
-                                    /*logState.value =
-                                        "onConnectionResult endPoint $endPoint resolution $resolution"*/
+                                    logState.value =
+                                        "onConnectionResult endPoint $endPoint resolution $resolution"
                                     if (resolution.status.isSuccess) {
                                         mRemoteHostEndpoint.value = endPoint
                                         Log.i(
@@ -179,8 +216,8 @@ class SlaveActivity : ComponentActivity() {
                                     }
                                 }
 
-                                override fun onDisconnected(endPointid: String) {
-                                    logState.value = "onDisconnected endPointid $endPointid"
+                                override fun onDisconnected(endPointId: String) {
+                                    logState.value = "onDisconnected endPointId $endPointId"
                                 }
                             }).addOnSuccessListener {
                             Log.i("Prudhvi Log", "onEndpointFound: ")
@@ -200,5 +237,5 @@ class SlaveActivity : ComponentActivity() {
                 Log.i("Prudhvi Log", "startDiscovery: failure $it")
                 logState.value = "Failure $it"
             }
-    }
+    }*/
 }
