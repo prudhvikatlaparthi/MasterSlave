@@ -1,4 +1,4 @@
-package com.pru.slavedevice.ui.theme
+package com.pru.slavedevice.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.MaterialTheme

@@ -1,4 +1,4 @@
-package com.pru.slavedevice.ui.theme
+package com.pru.slavedevice.theme
 
 import androidx.compose.material.Typography
 import androidx.compose.ui.text.TextStyle
